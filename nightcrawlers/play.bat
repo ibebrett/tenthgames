@@ -1,0 +1,1 @@
+.\target\debug\my_sdl_rust_life.exe .\PatrickHand-Regular.ttf

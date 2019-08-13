@@ -1,0 +1,12 @@
+
+[package]
+name = "my_sdl_rust_life"
+version = "0.0.0"
+build = "build.rs"
+
+[dependencies.sdl2]
+version = "0.32"
+default-features = false
+features = ["ttf","image","mixer"]
+
+#Could not figure out how to get "gfx" working in features above

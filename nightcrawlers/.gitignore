@@ -1,0 +1,5 @@
+/*.dll
+/gnu-mingw
+/msvc
+/target
+**/*.rs.bk
