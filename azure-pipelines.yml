@@ -17,3 +17,4 @@ steps:
   - script: |
       cd gamehs
       cargo build
+  - publish: $(System.DefaultWorkingDirectory)/gamehs/target
