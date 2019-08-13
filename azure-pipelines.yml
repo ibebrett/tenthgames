@@ -17,4 +17,6 @@ steps:
   - script: |
       cd gamehs
       cargo build --all
+      cp SDL2.dll $(System.DefaultWorkingDirectory)/gamehs/target/debug
+      cp SDL2.dll $(System.DefaultWorkingDirectory)/gamehs/target/release
   - publish: $(System.DefaultWorkingDirectory)/gamehs/target
