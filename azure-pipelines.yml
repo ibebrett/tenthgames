@@ -16,5 +16,5 @@ steps:
     condition: eq( variables['Agent.OS'], 'Windows_NT' )
   - script: |
       cd gamehs
-      cargo build
+      cargo build --all
   - publish: $(System.DefaultWorkingDirectory)/gamehs/target
