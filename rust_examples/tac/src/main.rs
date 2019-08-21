@@ -30,7 +30,7 @@ fn tac_memmap(path: &String) -> std::io::Result<()> {
     for c in mmap_iter {
         curr_i -= 1;
         if (*c as char) == '\n' || curr_i == 0 {
-            println!("{}", String::from_utf8_lossy(&mmap[curr_i.. last_i]));
+            println!("{}", String::from_utf8_lossy(&mmap[curr_i..last_i]));
             last_i = curr_i;
         }
     }
