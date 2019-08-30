@@ -1,13 +1,13 @@
 {
   "tiles": [
-    {"tile": "floor_1", "x": 0,   "y": 0},
-    {"tile": "floor_1", "x": 16,  "y": 0},
-    {"tile": "floor_1", "x": 32,  "y": 0},
-    {"tile": "floor_1", "x": 48,  "y": 0},
-    {"tile": "floor_2", "x": 64,  "y": 0},
-    {"tile": "floor_1", "x": 80,  "y": 0},
-    {"tile": "floor_1", "x": 96,  "y": 0},
-    {"tile": "floor_3", "x": 112, "y": 0},
+    {"tile": "wall_mid", "x": 0,   "y": 0},
+    {"tile": "wall_mid", "x": 16,  "y": 0},
+    {"tile": "wall_mid", "x": 32,  "y": 0},
+    {"tile": "wall_mid", "x": 48,  "y": 0},
+    {"tile": "wall_mid", "x": 64,  "y": 0},
+    {"tile": "wall_mid", "x": 80,  "y": 0},
+    {"tile": "wall_mid", "x": 96,  "y": 0},
+    {"tile": "wall_mid", "x": 112, "y": 0},
 
     {"tile": "floor_1", "x": 0,   "y": 16},
     {"tile": "floor_1", "x": 16,  "y": 16},
@@ -73,8 +73,9 @@
     {"tile": "floor_3", "x": 112, "y": 112}
   ],
   "animations": [
-    {"animation": "coin_anim", "x": 48, "y": 0, "frame": 0},
+    {"animation": "coin_anim", "x": 48, "y": 32, "frame": 0},
     {"animation": "wall_fountain_mid_blue_anim", "x": 32, "y": 16, "frame": 0},
-    {"animation": "wall_fountain_basin_blue_anim", "x": 32, "y": 32, "frame": 0}
+    {"animation": "wall_fountain_basin_blue_anim", "x": 32, "y": 32, "frame": 0},
+    {"animation": "ice_zombie_idle_anim", "x": 96, "y": 48, "frame": 0}
   ]
 }
