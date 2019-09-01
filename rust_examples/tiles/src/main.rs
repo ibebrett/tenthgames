@@ -1,8 +1,14 @@
+extern crate rand;
 extern crate sdl2;
 
+use itertools::Itertools;
+
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fs;
 use std::time::Duration;
+
+use rand::prelude::*;
 
 use sdl2::event::Event;
 use sdl2::image::{InitFlag, LoadTexture};
@@ -49,6 +55,8 @@ struct MapAnimation {
 struct Map {
     tiles: Vec<MapTile>,
     animations: Vec<MapAnimation>,
+    width: u32,
+    height: u32,
 }
 
 enum Dir {
@@ -65,24 +73,42 @@ impl Dir {
     }
 }
 
-struct Player {
+struct Character<'a> {
     pos: Vector2<f32>,
     walking: bool,
     frame: usize,
     dir: Dir,
+    idle_anim: &'a Animation,
+    walk_anim: &'a Animation,
+    frame_rate: usize,
+    frame_counter: usize,
+    player: bool,
+    speed: f32,
 }
 
-impl Player {
-    fn new() -> Player {
-        Player {
+impl<'a> Character<'a> {
+    fn new(
+        idle_anim: &'a Animation,
+        walk_anim: &'a Animation,
+        player: bool,
+        speed: f32,
+    ) -> Character<'a> {
+        Character {
             pos: Vector2::new(0.0, 0.0),
             walking: false,
             frame: 0,
             dir: Dir::Right,
+            idle_anim: idle_anim,
+            walk_anim: walk_anim,
+            frame_rate: 3,
+            frame_counter: 0,
+            player: player,
+            speed: speed,
         }
     }
 
-    fn update_move(&mut self, dir: Vector2<f32>) {
+    fn update(&mut self, dir: Vector2<f32>) {
+        // Called once per frame, with direction.
         if dir.x > 0.0 {
             self.dir = Dir::Right;
         }
@@ -97,6 +123,26 @@ impl Player {
         if self.walking != walking_before {
             self.frame = 0;
         }
+
+        if self.frame_counter >= self.frame_rate {
+            self.frame = (self.frame + 1) % self.anim().tiles.len();
+            self.frame_counter = 0;
+        } else {
+            self.frame_counter += 1;
+        }
+    }
+
+    fn anim(&self) -> &'a Animation {
+        if self.walking {
+            self.walk_anim
+        } else {
+            self.idle_anim
+        }
+    }
+
+    fn width_height(&self) -> (u32, u32) {
+        let anim = self.anim();
+        (anim.w, anim.h)
     }
 }
 
@@ -132,13 +178,7 @@ impl PlayerInput {
         if self.right {
             x = 1.0;
         }
-
-        if x == 0.0 && y == 0.0 {
-            return Vector2::new(x, y);
-        }
-        let v = Vector2::new(x, y);
-
-        return v * (1.0 / v.dot(v).sqrt());
+        return normalize(Vector2::new(x, y));
     }
 }
 
@@ -183,6 +223,13 @@ fn parse_tiles() -> (HashMap<String, Tile>, HashMap<String, Animation>) {
     return (tiles, anims);
 }
 
+fn normalize(v: Vector2<f32>) -> Vector2<f32> {
+    if v.x == 0.0 && v.y == 0.0 {
+        return v;
+    }
+    return v * (1.0 / v.dot(v).sqrt());
+}
+
 fn main() -> Result<(), String> {
     let (tiles, anims) = parse_tiles();
 
@@ -209,9 +256,48 @@ fn main() -> Result<(), String> {
 
     let mut frame_switch = 0;
 
-    let mut player = Player::new();
-    let player_walk_anim = &anims["elf_m_run_anim"];
-    let player_idle_anim = &anims["elf_m_idle_anim"];
+    //let mut player = Character::new(&anims["elf_m_idle_anim"], &anims["elf_m_run_anim"]);
+    //let mut imp = Character::new(&anims["elf_m_idle_anim"], &anims["elf_m_run_anim"]);
+
+    let mut characters = HashMap::new(); //<String, Character>
+    characters.insert(
+        "player",
+        Character::new(
+            &anims["elf_m_idle_anim"],
+            &anims["elf_m_run_anim"],
+            true,
+            13.0,
+        ),
+    );
+    characters.insert(
+        "imp",
+        Character::new(
+            &anims["goblin_idle_anim"],
+            &anims["goblin_run_anim"],
+            false,
+            10.0,
+        ),
+    );
+    characters.insert(
+        "skelet",
+        Character::new(
+            &anims["skelet_idle_anim"],
+            &anims["skelet_run_anim"],
+            false,
+            3.0,
+        ),
+    );
+    characters.insert(
+        "zombie",
+        Character::new(
+            &anims["zombie_idle_anim"],
+            &anims["zombie_run_anim"],
+            false,
+            8.0,
+        ),
+    );
+
+    let mut rng = thread_rng();
 
     let mut events = sdl_context.event_pump()?;
 
@@ -243,27 +329,21 @@ fn main() -> Result<(), String> {
         }
 
         // Move our guy.
-        let mov = pi.to_dir();
+        let player_pos = characters["player"].pos;
 
-        player.pos += mov * 13.0;
-        player.update_move(mov);
-
-        let anim = if player.walking {
-            player_walk_anim
-        } else {
-            player_idle_anim
-        };
-
-        if frame_switch >= 3 {
-            player.frame = (player.frame + 1) % anim.tiles.len();
-            frame = (frame + 1) % anim.tiles.len();
-            for map_anim in &mut map.animations {
-                let anim = &anims[&map_anim.animation];
-                map_anim.frame = (map_anim.frame + 1) % anim.tiles.len();
-            }
-            frame_switch = 0;
-        } else {
-            frame_switch += 1;
+        for (_, character) in &mut characters {
+            let mov = if character.player {
+                pi.to_dir()
+            } else {
+                let dir = player_pos - character.pos;
+                if dir.dot(dir) < 5.0 {
+                    Vector2::new(0.0, 0.0)
+                } else {
+                    normalize(dir) * 0.5
+                }
+            };
+            character.pos += mov * character.speed;
+            character.update(mov);
         }
 
         canvas.clear();
@@ -289,25 +369,34 @@ fn main() -> Result<(), String> {
         }
 
         // Draw "player"
-        canvas.copy_ex(
-            &texture,
-            Rect::new(
-                anim.tiles[player.frame].x,
-                anim.tiles[player.frame].y,
-                anim.w,
-                anim.h,
-            ),
-            Rect::new(
-                player.pos.x as i32,
-                player.pos.y as i32,
-                anim.w * 10,
-                anim.h * 10,
-            ),
-            0.0,
-            None,
-            player.dir.flip(),
-            false,
-        )?;
+        // We want to sort by y index of their bottom.
+        let characters_in_order = characters
+            .iter()
+            .map(|(k, c)| (k, c.pos.y + (c.width_height().1 as f32)))
+            .sorted_by(|(_, y1), (_, y2)| y1.partial_cmp(y2).unwrap_or(Ordering::Equal));
+
+        for (k, _) in characters_in_order {
+            let character = &characters[k];
+            canvas.copy_ex(
+                &texture,
+                Rect::new(
+                    character.anim().tiles[character.frame].x,
+                    character.anim().tiles[character.frame].y,
+                    character.anim().w,
+                    character.anim().h,
+                ),
+                Rect::new(
+                    character.pos.x as i32,
+                    character.pos.y as i32,
+                    character.anim().w * 10,
+                    character.anim().h * 10,
+                ),
+                0.0,
+                None,
+                character.dir.flip(),
+                false,
+            )?;
+        }
         canvas.present();
 
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));

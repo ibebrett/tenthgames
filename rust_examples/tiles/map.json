@@ -1,4 +1,6 @@
 {
+  "width": 1000,
+  "height": 1000,
   "tiles": [
     {"tile": "wall_mid", "x": 0,   "y": 0},
     {"tile": "wall_mid", "x": 16,  "y": 0},
