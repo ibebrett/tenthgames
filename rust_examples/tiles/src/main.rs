@@ -13,6 +13,7 @@ use rand::prelude::*;
 use sdl2::event::Event;
 use sdl2::image::{InitFlag, LoadTexture};
 use sdl2::keyboard::Keycode;
+use sdl2::pixels;
 use sdl2::rect::Rect;
 
 use serde::{Deserialize, Serialize};
@@ -52,9 +53,18 @@ struct MapAnimation {
 }
 
 #[derive(Serialize, Deserialize)]
+struct MapForbidden {
+    x: i32,
+    y: i32,
+    w: u32,
+    h: u32,
+}
+
+#[derive(Serialize, Deserialize)]
 struct Map {
     tiles: Vec<MapTile>,
     animations: Vec<MapAnimation>,
+    forbidden: Vec<MapForbidden>,
     width: u32,
     height: u32,
 }
@@ -84,17 +94,25 @@ struct Character<'a> {
     frame_counter: usize,
     player: bool,
     speed: f32,
+    w: u32,
+    h: u32,
+    moveable: bool,
 }
 
 impl<'a> Character<'a> {
     fn new(
+        x: f32,
+        y: f32,
         idle_anim: &'a Animation,
         walk_anim: &'a Animation,
         player: bool,
         speed: f32,
     ) -> Character<'a> {
+        let w = idle_anim.w;
+        let h = idle_anim.h;
+
         Character {
-            pos: Vector2::new(0.0, 0.0),
+            pos: Vector2::new(x + (((w * 10) as f32) / 2.0), y + ((h * 10) as f32)),
             walking: false,
             frame: 0,
             dir: Dir::Right,
@@ -104,6 +122,33 @@ impl<'a> Character<'a> {
             frame_counter: 0,
             player: player,
             speed: speed,
+            w: idle_anim.w,
+            h: idle_anim.h,
+            moveable: true,
+        }
+    }
+
+    fn from_anim(x: f32, y: f32, anim: &'a Animation) -> Character<'a> {
+        let w = anim.w;
+        let h = anim.h;
+
+        Character {
+            pos: Vector2::new(
+                x * 10.0 + (((w * 10) as f32) / 2.0),
+                y * 10.0 + ((h * 10) as f32),
+            ),
+            walking: false,
+            frame: 0,
+            dir: Dir::Right,
+            idle_anim: anim,
+            walk_anim: anim,
+            frame_rate: 3,
+            frame_counter: 0,
+            player: false,
+            speed: 0.0,
+            w: anim.w,
+            h: anim.h,
+            moveable: false,
         }
     }
 
@@ -144,6 +189,13 @@ impl<'a> Character<'a> {
         let anim = self.anim();
         (anim.w, anim.h)
     }
+
+    fn top_left(&self) -> (f32, f32) {
+        (
+            self.pos.x - (self.w as f32 / 2.0) * 10.0,
+            self.pos.y - (self.h as f32) * 10.0,
+        )
+    }
 }
 
 struct PlayerInput {
@@ -151,6 +203,18 @@ struct PlayerInput {
     down: bool,
     left: bool,
     right: bool,
+}
+
+struct DebugState {
+    draw_forbidden: bool,
+}
+
+impl DebugState {
+    fn new() -> DebugState {
+        return DebugState {
+            draw_forbidden: false,
+        };
+    }
 }
 
 impl PlayerInput {
@@ -179,6 +243,28 @@ impl PlayerInput {
             x = 1.0;
         }
         return normalize(Vector2::new(x, y));
+    }
+}
+
+struct Camera {
+    x: f32,
+    y: f32,
+    w: u32,
+    h: u32,
+}
+
+impl Camera {
+    fn new(w: u32, h: u32) -> Camera {
+        Camera {
+            w: w,
+            h: h,
+            x: 0.0,
+            y: 0.0,
+        }
+    }
+    fn update(&mut self, character: &Character) -> () {
+        self.x = character.pos.x - (self.w as f32 / 2.0);
+        self.y = character.pos.y - (self.h as f32 / 2.0);
     }
 }
 
@@ -239,7 +325,7 @@ fn main() -> Result<(), String> {
     let video_subsystem = sdl_context.video()?;
     let _image_context = sdl2::image::init(InitFlag::PNG | InitFlag::JPG)?;
     let window = video_subsystem
-        .window("Tiles", 1200, 768)
+        .window("Tiles", 1200, 1200)
         .position_centered()
         .build()
         .map_err(|e| e.to_string())?;
@@ -253,16 +339,17 @@ fn main() -> Result<(), String> {
     let texture = texture_creator.load_texture("tiles.png")?;
 
     let mut frame = 0;
-
     let mut frame_switch = 0;
 
-    //let mut player = Character::new(&anims["elf_m_idle_anim"], &anims["elf_m_run_anim"]);
-    //let mut imp = Character::new(&anims["elf_m_idle_anim"], &anims["elf_m_run_anim"]);
+    let mut debug_state = DebugState::new();
 
-    let mut characters = HashMap::new(); //<String, Character>
+    let mut characters: HashMap<String, Character> = HashMap::new(); //<String, Character>
+
     characters.insert(
-        "player",
+        "player".to_string(),
         Character::new(
+            0.0,
+            100.0,
             &anims["elf_m_idle_anim"],
             &anims["elf_m_run_anim"],
             true,
@@ -270,8 +357,10 @@ fn main() -> Result<(), String> {
         ),
     );
     characters.insert(
-        "imp",
+        "imp".to_string(),
         Character::new(
+            40.0,
+            400.0,
             &anims["goblin_idle_anim"],
             &anims["goblin_run_anim"],
             false,
@@ -279,8 +368,10 @@ fn main() -> Result<(), String> {
         ),
     );
     characters.insert(
-        "skelet",
+        "skelet".to_string(),
         Character::new(
+            100.0,
+            600.0,
             &anims["skelet_idle_anim"],
             &anims["skelet_run_anim"],
             false,
@@ -288,8 +379,10 @@ fn main() -> Result<(), String> {
         ),
     );
     characters.insert(
-        "zombie",
+        "zombie".to_string(),
         Character::new(
+            34.0,
+            400.0,
             &anims["zombie_idle_anim"],
             &anims["zombie_run_anim"],
             false,
@@ -297,15 +390,37 @@ fn main() -> Result<(), String> {
         ),
     );
 
+    let mut anim_count = 0;
+    for map_anim in &map.animations {
+        let key = anim_count.to_string();
+        characters.insert(
+            key,
+            Character::from_anim(
+                map_anim.x as f32,
+                map_anim.y as f32,
+                &anims[&map_anim.animation],
+            ),
+        );
+        anim_count += 1;
+    }
+
     let mut rng = thread_rng();
 
     let mut events = sdl_context.event_pump()?;
+
+    let mut camera = Camera::new(1200, 1200);
 
     'mainloop: loop {
         let mut pi = PlayerInput::new();
         for event in events.poll_iter() {
             match event {
                 Event::Quit { .. } => break 'mainloop,
+                Event::KeyDown {
+                    keycode: Some(Keycode::P),
+                    ..
+                } => {
+                    debug_state.draw_forbidden = !debug_state.draw_forbidden;
+                }
                 _ => {}
             }
         }
@@ -328,6 +443,20 @@ fn main() -> Result<(), String> {
             pi.right = true;
         }
 
+        frame += 1;
+        let update_map_anim = if frame == 3 {
+            frame = 0;
+            true
+        } else {
+            false
+        };
+
+        for map_anim in &mut map.animations {
+            if update_map_anim {
+                map_anim.frame = (map_anim.frame + 1) % anims[&map_anim.animation].tiles.len();
+            }
+        }
+
         // Move our guy.
         let player_pos = characters["player"].pos;
 
@@ -341,10 +470,31 @@ fn main() -> Result<(), String> {
                 } else {
                     normalize(dir) * 0.5
                 }
-            };
-            character.pos += mov * character.speed;
+            } * character.speed;
+
             character.update(mov);
+
+            // Don't allow movement into restricted areas.
+            let new_pos = character.pos + mov;
+
+            let mut allowed = true;
+
+            for forbidden in &map.forbidden {
+                if new_pos.x > (forbidden.x * 10) as f32
+                    && new_pos.x < ((forbidden.x + forbidden.w as i32) * 10) as f32
+                    && new_pos.y > (forbidden.y * 10) as f32
+                    && new_pos.y < ((forbidden.y + forbidden.h as i32) * 10) as f32
+                {
+                    allowed = false;
+                }
+            }
+
+            if allowed {
+                character.pos += mov;
+            }
         }
+
+        camera.update(&characters["player"]);
 
         canvas.clear();
 
@@ -354,17 +504,12 @@ fn main() -> Result<(), String> {
             canvas.copy(
                 &texture,
                 Rect::new(tile.x, tile.y, tile.w, tile.h),
-                Rect::new(map_tile.x * 10, map_tile.y * 10, tile.w * 10, tile.h * 10),
-            )?;
-        }
-
-        for map_anim in &map.animations {
-            let anim = &anims[&map_anim.animation];
-            let frame_tile = &anim.tiles[map_anim.frame];
-            canvas.copy(
-                &texture,
-                Rect::new(frame_tile.x, frame_tile.y, anim.w, anim.h),
-                Rect::new(map_anim.x * 10, map_anim.y * 10, anim.w * 10, anim.h * 10),
+                Rect::new(
+                    map_tile.x * 10 - camera.x as i32,
+                    map_tile.y * 10 - camera.y as i32,
+                    tile.w * 10,
+                    tile.h * 10,
+                ),
             )?;
         }
 
@@ -372,11 +517,12 @@ fn main() -> Result<(), String> {
         // We want to sort by y index of their bottom.
         let characters_in_order = characters
             .iter()
-            .map(|(k, c)| (k, c.pos.y + (c.width_height().1 as f32)))
+            .map(|(k, c)| (k, c.pos.y))
             .sorted_by(|(_, y1), (_, y2)| y1.partial_cmp(y2).unwrap_or(Ordering::Equal));
 
         for (k, _) in characters_in_order {
             let character = &characters[k];
+            let (x, y) = character.top_left();
             canvas.copy_ex(
                 &texture,
                 Rect::new(
@@ -386,8 +532,8 @@ fn main() -> Result<(), String> {
                     character.anim().h,
                 ),
                 Rect::new(
-                    character.pos.x as i32,
-                    character.pos.y as i32,
+                    (x - camera.x) as i32,
+                    (y - camera.y) as i32,
                     character.anim().w * 10,
                     character.anim().h * 10,
                 ),
@@ -396,7 +542,52 @@ fn main() -> Result<(), String> {
                 character.dir.flip(),
                 false,
             )?;
+            if debug_state.draw_forbidden {
+                canvas.set_draw_color(pixels::Color::RGB(255, 255, 255));
+                let r = Rect::new(
+                    (x - camera.x) as i32,
+                    (y - camera.y) as i32,
+                    character.anim().w * 10,
+                    character.anim().h * 10,
+                );
+                canvas.draw_rect(r)?;
+            }
         }
+        /*
+        for map_anim in &map.animations {
+            let anim = &anims[&map_anim.animation];
+            let frame_tile = &anim.tiles[map_anim.frame];
+            canvas.copy(
+                &texture,
+                Rect::new(frame_tile.x, frame_tile.y, anim.w, anim.h),
+                Rect::new(map_anim.x * 10, map_anim.y * 10, anim.w * 10, anim.h * 10),
+            )?;
+        }*/
+
+        // Draw debugging
+        if debug_state.draw_forbidden {
+            for forbidden in &map.forbidden {
+                canvas.set_draw_color(pixels::Color::RGB(255, 0, 0));
+                let r = sdl2::rect::Rect::new(
+                    forbidden.x * 10 - camera.x as i32,
+                    forbidden.y * 10 - camera.y as i32,
+                    forbidden.w * 10,
+                    forbidden.h * 10,
+                );
+                canvas.draw_rect(r)?;
+            }
+            for (_, character) in &characters {
+                canvas.set_draw_color(pixels::Color::RGB(255, 255, 0));
+                let r = sdl2::rect::Rect::new(
+                    (character.pos.x - camera.x) as i32,
+                    (character.pos.y - camera.y) as i32,
+                    2,
+                    2,
+                );
+                canvas.draw_rect(r)?;
+            }
+        }
+
         canvas.present();
 
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
