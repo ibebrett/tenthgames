@@ -2,7 +2,7 @@
 name = "snaek"
 version = "0.1.0"
 authors = ["Brett Jurman <i.be.brett@gmail.com>"]
-edition = "2019"
+edition = "2018"
 
 [dependencies]
 rand = "0.7.0"

@@ -15,12 +15,24 @@ use sdl2::image::{InitFlag, LoadTexture};
 use sdl2::keyboard::Keycode;
 use sdl2::pixels;
 use sdl2::rect::Rect;
+use sdl2::render::Texture;
 
 use serde::{Deserialize, Serialize};
 
 use cgmath::InnerSpace;
 use cgmath::Vector2;
 //use serde_json::Result;
+//
+struct Letter {
+    x: u32,
+    y: u32,
+    w: u32,
+    h: u32
+}
+
+fn load_letters(path: String) {
+
+}
 
 #[derive(Debug)]
 struct Tile {
@@ -28,6 +40,7 @@ struct Tile {
     y: i32,
     w: u32,
     h: u32,
+    texture: String,
 }
 
 #[derive(Debug)]
@@ -268,11 +281,11 @@ impl Camera {
     }
 }
 
-fn parse_tiles() -> (HashMap<String, Tile>, HashMap<String, Animation>) {
+fn parse_tiles(path: &str, texture: String) -> (HashMap<String, Tile>, HashMap<String, Animation>) {
     let mut tiles: HashMap<String, Tile> = HashMap::new();
     let mut anims: HashMap<String, Animation> = HashMap::new();
 
-    for line in fs::read_to_string("tiles_list.txt").unwrap().split("\n") {
+    for line in fs::read_to_string(path).unwrap().split("\n") {
         let s: Vec<&str> = line.trim().split(" ").collect();
         if s.len() == 5 {
             tiles.insert(
@@ -282,6 +295,7 @@ fn parse_tiles() -> (HashMap<String, Tile>, HashMap<String, Animation>) {
                     y: s[2].parse::<i32>().unwrap(),
                     w: s[3].parse::<u32>().unwrap(),
                     h: s[4].parse::<u32>().unwrap(),
+                    texture: texture.clone(),
                 },
             );
         } else if s.len() == 6 {
@@ -300,6 +314,7 @@ fn parse_tiles() -> (HashMap<String, Tile>, HashMap<String, Animation>) {
                     y: y,
                     w: anim.w,
                     h: anim.h,
+                    texture: texture.clone(),
                 });
             }
             anims.insert(String::from(s[0]), anim);
@@ -317,7 +332,11 @@ fn normalize(v: Vector2<f32>) -> Vector2<f32> {
 }
 
 fn main() -> Result<(), String> {
-    let (tiles, anims) = parse_tiles();
+    let (mut tiles, mut anims) = parse_tiles("tiles_list.txt", "generic".to_string());
+    let (tiles2, anims2) = parse_tiles("slamslime.txt", "slamslime".to_string());
+
+    tiles.extend(tiles2);
+    anims.extend(anims2);
 
     let mut map: Map = serde_json::from_str(&fs::read_to_string("map.json").unwrap()).unwrap();
 
@@ -336,7 +355,17 @@ fn main() -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
     let texture_creator = canvas.texture_creator();
-    let texture = texture_creator.load_texture("tiles.png")?;
+
+    let mut textures: HashMap<String, Texture> = HashMap::new();
+
+    textures.insert(
+        "generic".to_string(),
+        texture_creator.load_texture("tiles.png").unwrap(),
+    );
+    textures.insert(
+        "slamslime".to_string(),
+        texture_creator.load_texture("slamslime.png").unwrap(),
+    );
 
     let mut frame = 0;
     let mut frame_switch = 0;
@@ -368,12 +397,12 @@ fn main() -> Result<(), String> {
         ),
     );
     characters.insert(
-        "skelet".to_string(),
+        "slamslime".to_string(),
         Character::new(
             100.0,
             600.0,
-            &anims["skelet_idle_anim"],
-            &anims["skelet_run_anim"],
+            &anims["slamslime"],
+            &anims["slamslime"],
             false,
             3.0,
         ),
@@ -502,7 +531,7 @@ fn main() -> Result<(), String> {
         for map_tile in &map.tiles {
             let tile = &tiles[&map_tile.tile];
             canvas.copy(
-                &texture,
+                &textures[&tile.texture],
                 Rect::new(tile.x, tile.y, tile.w, tile.h),
                 Rect::new(
                     map_tile.x * 10 - camera.x as i32,
@@ -524,7 +553,7 @@ fn main() -> Result<(), String> {
             let character = &characters[k];
             let (x, y) = character.top_left();
             canvas.copy_ex(
-                &texture,
+                &textures[&character.anim().tiles[character.frame].texture],
                 Rect::new(
                     character.anim().tiles[character.frame].x,
                     character.anim().tiles[character.frame].y,
