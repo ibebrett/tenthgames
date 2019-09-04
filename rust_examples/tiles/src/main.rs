@@ -23,16 +23,6 @@ use cgmath::InnerSpace;
 use cgmath::Vector2;
 //use serde_json::Result;
 //
-struct Letter {
-    x: u32,
-    y: u32,
-    w: u32,
-    h: u32
-}
-
-fn load_letters(path: String) {
-
-}
 
 #[derive(Debug)]
 struct Tile {
