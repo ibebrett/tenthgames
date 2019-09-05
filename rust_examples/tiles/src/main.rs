@@ -355,6 +355,8 @@ fn main() -> Result<(), String> {
     let _image_context = sdl2::image::init(InitFlag::PNG | InitFlag::JPG)?;
 
     let (audio, music) = setup_sound(&sdl_context)?;
+
+    let sound_chunk = sdl2::mixer::Chunk::from_file("coin.wav")?;
     let window = video_subsystem
         .window("Tiles", 1200, 1200)
         .position_centered()
@@ -507,6 +509,10 @@ fn main() -> Result<(), String> {
             } else {
                 let dir = player_pos - character.pos;
                 if dir.dot(dir) < 5.0 {
+                    match sdl2::mixer::Channel::all().play(&sound_chunk, 1) {
+                        Ok(_) => (),
+                        Err(_) => ()
+                    }
                     Vector2::new(0.0, 0.0)
                 } else {
                     normalize(dir) * 0.5
