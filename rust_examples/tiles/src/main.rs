@@ -10,6 +10,8 @@ use std::time::Duration;
 
 use rand::prelude::*;
 
+use sdl2::mixer::{AUDIO_S16LSB, DEFAULT_CHANNELS};
+
 use sdl2::event::Event;
 use sdl2::image::{InitFlag, LoadTexture};
 use sdl2::keyboard::Keycode;
@@ -321,6 +323,24 @@ fn normalize(v: Vector2<f32>) -> Vector2<f32> {
     return v * (1.0 / v.dot(v).sqrt());
 }
 
+fn setup_sound(sdl: &sdl2::Sdl) -> Result<(sdl2::AudioSubsystem, sdl2::mixer::Music), String> {
+    let audio = sdl.audio()?;
+
+    let frequency = 44_100;
+    let format = AUDIO_S16LSB; // signed 16 bit samples, in little-endian byte order
+    let channels = DEFAULT_CHANNELS; // Stereo
+    let chunk_size = 1_024;
+
+    sdl2::mixer::open_audio(frequency, format, channels, chunk_size)?;
+    let _mixer_context = sdl2::mixer::init(sdl2::mixer::InitFlag::MP3)?;
+    sdl2::mixer::allocate_channels(4);
+
+    let music = sdl2::mixer::Music::from_file("music.mp3")?;
+    music.play(-1)?;
+
+    Ok((audio, music))
+}
+
 fn main() -> Result<(), String> {
     let (mut tiles, mut anims) = parse_tiles("tiles_list.txt", "generic".to_string());
     let (tiles2, anims2) = parse_tiles("slamslime.txt", "slamslime".to_string());
@@ -333,6 +353,8 @@ fn main() -> Result<(), String> {
     let sdl_context = sdl2::init()?;
     let video_subsystem = sdl_context.video()?;
     let _image_context = sdl2::image::init(InitFlag::PNG | InitFlag::JPG)?;
+
+    let (audio, music) = setup_sound(&sdl_context)?;
     let window = video_subsystem
         .window("Tiles", 1200, 1200)
         .position_centered()

@@ -16,4 +16,4 @@ features = ["derive"]
 
 [dependencies.sdl2]
 version = "0.32.2"
-features = ["image"]
+features = ["image", "mixer"]
